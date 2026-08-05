@@ -5,12 +5,10 @@ Regra de arquitetura: validação e decisões de negócio aqui.
 components/ e pages/ nunca acessam database/ direto.
 """
 
-import re
 from typing import Any, Optional
 
 from database import fornecedores_repository as repo
-
-_EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+from utils.formatters import email_valido
 
 
 class ErroValidacao(Exception):
@@ -21,7 +19,7 @@ def _validar_dados_fornecedor(nome: str, email: Optional[str]) -> None:
     if not nome or not nome.strip():
         raise ErroValidacao("O nome do fornecedor não pode estar vazio.")
 
-    if email and not _EMAIL_REGEX.match(email):
+    if email and not email_valido(email):
         raise ErroValidacao(f"E-mail inválido: '{email}'.")
 
 
