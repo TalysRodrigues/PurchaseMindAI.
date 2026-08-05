@@ -1,0 +1,25 @@
+# Ambiente
+.env
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Streamlit
+.streamlit/secrets.toml
+
+# IDE
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Testes / cobertura
+.pytest_cache/
+.coverage
+htmlcov/
