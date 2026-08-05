@@ -10,9 +10,8 @@ pandas>=2.2.0
 # Variáveis de ambiente
 python-dotenv>=1.0.1
 
-# IA (descomentar conforme a escolha do provedor)
-# anthropic>=0.34.0
-# openai>=1.40.0
+# IA
+anthropic>=0.34.0
 
 # Utilitários
 pydantic>=2.8.0
