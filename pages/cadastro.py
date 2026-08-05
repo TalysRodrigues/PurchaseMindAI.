@@ -52,5 +52,7 @@ def render() -> None:
                         "🚧 O cadastro por IA ainda não está ligado — "
                         "assim que o Chat IA for configurado, esta aba passa a funcionar."
                     )
+                except ia_service.IAErroExecucaoError as erro:
+                    st.error(f"A IA não conseguiu processar esse texto: {erro}")
                 except ErroValidacao as erro:
                     st.error(str(erro))
