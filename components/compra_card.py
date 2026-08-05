@@ -12,14 +12,7 @@ import streamlit as st
 
 from components.status_badge import render_status_badge
 from config.constants import StatusCompra
-
-
-def formatar_data_br(data_iso: Optional[str]) -> str:
-    """Converte 'YYYY-MM-DD' para 'DD/MM/YYYY'. Função pura, testável sem UI."""
-    if not data_iso:
-        return "sem prazo definido"
-    ano, mes, dia = data_iso.split("-")
-    return f"{dia}/{mes}/{ano}"
+from utils.formatters import formatar_data_br
 
 
 def render_compra_card(
