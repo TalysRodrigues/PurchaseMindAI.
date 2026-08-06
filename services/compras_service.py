@@ -1,5 +1,5 @@
 """
-Regras de negócio de compras.
+Regras de negócio de compras (ordens de compra, cada uma com 1+ itens).
 
 Regra de arquitetura: toda validação e decisão de negócio vive aqui.
 components/ e pages/ chamam estas funções — nunca acessam database/ direto.
@@ -14,7 +14,7 @@ from services import notificacoes_service
 
 
 class ErroValidacao(Exception):
-    """Levantado quando os dados de uma compra são inválidos."""
+    """Levantado quando os dados de uma ordem de compra são inválidos."""
 
 
 class TransicaoInvalidaError(Exception):
@@ -31,57 +31,82 @@ TRANSICOES_VALIDAS: dict[StatusCompra, set[StatusCompra]] = {
 }
 
 
-def _validar_dados_compra(descricao: str, quantidade: int) -> None:
-    if not descricao or not descricao.strip():
-        raise ErroValidacao("A descrição da compra não pode estar vazia.")
+def _validar_itens(itens: list[dict[str, Any]]) -> None:
+    if not itens:
+        raise ErroValidacao("A ordem de compra precisa ter pelo menos 1 item.")
 
-    if quantidade < 1:
-        raise ErroValidacao("A quantidade precisa ser pelo menos 1.")
+    for item in itens:
+        descricao = item.get("descricao", "")
+        quantidade = item.get("quantidade", 0)
 
-    if quantidade > MAX_ITENS_POR_COMPRA:
-        raise ErroValidacao(
-            f"Quantidade máxima por compra é {MAX_ITENS_POR_COMPRA} itens."
-        )
+        if not descricao or not str(descricao).strip():
+            raise ErroValidacao("Todo item precisa ter uma descrição.")
+
+        if quantidade < 1:
+            raise ErroValidacao(f"A quantidade de '{descricao}' precisa ser pelo menos 1.")
+
+        if quantidade > MAX_ITENS_POR_COMPRA:
+            raise ErroValidacao(
+                f"Quantidade máxima por item é {MAX_ITENS_POR_COMPRA} unidades "
+                f"(item: '{descricao}')."
+            )
+
+
+def quantidade_total(compra: dict[str, Any]) -> int:
+    """Soma as quantidades de todos os itens de uma ordem de compra."""
+    itens = compra.get("compra_itens") or []
+    return sum(item["quantidade"] for item in itens)
 
 
 def criar_compra(
-    descricao: str,
-    quantidade: int = 1,
+    titulo: str,
+    itens: list[dict[str, Any]],
     fornecedor_id: Optional[str] = None,
     prazo_entrega: Optional[str] = None,
     criado_por: Optional[str] = None,
 ) -> dict[str, Any]:
     """
-    Cria uma nova compra com status inicial 'pendente' e já registra
-    a primeira entrada na timeline (histórico).
+    Cria uma nova ordem de compra com 1 ou mais itens, status inicial
+    'pendente', e já registra a primeira entrada na timeline.
     """
-    _validar_dados_compra(descricao, quantidade)
+    if not titulo or not titulo.strip():
+        raise ErroValidacao("A ordem de compra precisa de um título.")
 
-    dados = {
-        "descricao": descricao.strip(),
-        "quantidade": quantidade,
+    _validar_itens(itens)
+
+    dados_ordem = {
+        "titulo": titulo.strip(),
         "fornecedor_id": fornecedor_id,
         "prazo_entrega": prazo_entrega,
         "criado_por": criado_por,
         "status": StatusCompra.PENDENTE.value,
     }
 
-    compra = repo.criar(dados)
-    repo.registrar_historico(
-        compra_id=compra["id"],
-        status_novo=StatusCompra.PENDENTE.value,
-        observacao="Compra criada.",
+    ordem = repo.criar(dados_ordem)
+    itens_criados = repo.criar_itens(
+        ordem["id"],
+        [
+            {"descricao": str(item["descricao"]).strip(), "quantidade": int(item["quantidade"])}
+            for item in itens
+        ],
     )
-    return compra
+    ordem["compra_itens"] = itens_criados
+
+    repo.registrar_historico(
+        compra_id=ordem["id"],
+        status_novo=StatusCompra.PENDENTE.value,
+        observacao=f"Ordem criada com {len(itens_criados)} item(ns).",
+    )
+    return ordem
 
 
 def listar_compras(status: Optional[StatusCompra] = None) -> list[dict[str, Any]]:
-    """Lista compras, opcionalmente filtradas por status."""
+    """Lista ordens de compra (com itens embutidos), opcionalmente filtradas por status."""
     return repo.listar(status=status.value if status else None)
 
 
 def obter_timeline(compra_id: str) -> list[dict[str, Any]]:
-    """Retorna o histórico de status (timeline) de uma compra."""
+    """Retorna o histórico de status (timeline) de uma ordem de compra."""
     return repo.listar_historico(compra_id)
 
 
@@ -91,12 +116,12 @@ def mudar_status(
     observacao: Optional[str] = None,
 ) -> dict[str, Any]:
     """
-    Muda o status de uma compra, validando se a transição é permitida,
-    e registra o evento na timeline. Dispara notificação quando relevante.
+    Muda o status de uma ordem de compra, validando se a transição é
+    permitida, e registra o evento na timeline. Dispara notificação quando relevante.
     """
     compra = repo.buscar_por_id(compra_id)
     if compra is None:
-        raise ErroValidacao(f"Compra {compra_id} não encontrada.")
+        raise ErroValidacao(f"Ordem de compra {compra_id} não encontrada.")
 
     status_atual = StatusCompra(compra["status"])
     permitidos = TRANSICOES_VALIDAS[status_atual]
@@ -117,18 +142,15 @@ def mudar_status(
     )
 
     if novo_status == StatusCompra.ENTREGUE:
-        notificacoes_service.notificar_entrega_concluida(compra_id, compra["descricao"])
+        notificacoes_service.notificar_entrega_concluida(compra_id, compra["titulo"])
 
     return atualizada
 
 
 def verificar_atrasos() -> list[dict[str, Any]]:
     """
-    Verifica compras com prazo de entrega vencido há mais de
+    Verifica ordens com prazo de entrega vencido há mais de
     DIAS_ALERTA_ATRASO dias e dispara notificação de atraso para cada uma.
-
-    Pensado para ser chamado periodicamente (ex: toda vez que o Dashboard
-    carrega, ou por um job agendado no futuro).
     """
     compras_em_andamento = [
         c
@@ -150,7 +172,7 @@ def verificar_atrasos() -> list[dict[str, Any]]:
         if dias_atraso >= DIAS_ALERTA_ATRASO:
             notificacoes_service.notificar_atraso(
                 compra_id=compra["id"],
-                descricao=compra["descricao"],
+                descricao=compra["titulo"],
                 dias_atraso=dias_atraso,
             )
             atrasadas.append(compra)
