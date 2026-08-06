@@ -22,7 +22,21 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.logo("assets/logo.png")
+st.logo("assets/logo.png", size="large")
+
+# CSS customizado: o Streamlit limita o st.logo a um tamanho pequeno por padrão
+# (mesmo com size="large"). Isso força um tamanho maior de verdade.
+st.markdown(
+    """
+    <style>
+    [data-testid="stSidebar"] img {
+        height: 80px !important;
+        width: auto !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ---------------------------------------------------------------------------
 # Estado de sessão
@@ -62,10 +76,13 @@ def render_sidebar() -> str:
             label_visibility="collapsed",
         )
 
-        st.divider()
-        st.caption("v0.2.0 — em desenvolvimento")
-
     return escolha
+
+
+def render_rodape() -> None:
+    """Rodapé fixo no fim da página, fora da sidebar."""
+    st.divider()
+    st.caption("PurchaseMind AI · v0.2.0 — em desenvolvimento")
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +107,8 @@ def main():
 
     render_pagina = ROTAS[pagina_escolhida]
     render_pagina()
+
+    render_rodape()
 
 
 if __name__ == "__main__":
