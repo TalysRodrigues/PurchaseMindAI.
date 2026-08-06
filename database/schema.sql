@@ -21,12 +21,11 @@ create table if not exists fornecedores (
 );
 
 -- -----------------------------------------------------------------------------
--- Compras
+-- Compras (ordens de compra — cada uma pode ter vários itens, ver compra_itens)
 -- -----------------------------------------------------------------------------
 create table if not exists compras (
     id uuid primary key default gen_random_uuid(),
-    descricao text not null,
-    quantidade integer not null default 1,
+    titulo text not null,
     fornecedor_id uuid references fornecedores(id) on delete set null,
     status text not null default 'pendente'
         check (status in ('pendente', 'aprovada', 'em_transito', 'entregue', 'cancelada')),
@@ -35,6 +34,20 @@ create table if not exists compras (
     criado_em timestamptz not null default now(),
     atualizado_em timestamptz not null default now()
 );
+
+-- -----------------------------------------------------------------------------
+-- Itens de cada ordem de compra
+-- -----------------------------------------------------------------------------
+create table if not exists compra_itens (
+    id uuid primary key default gen_random_uuid(),
+    compra_id uuid not null references compras(id) on delete cascade,
+    descricao text not null,
+    quantidade integer not null default 1,
+    criado_em timestamptz not null default now()
+);
+
+create index if not exists idx_compra_itens_compra on compra_itens(compra_id);
+
 
 -- -----------------------------------------------------------------------------
 -- Histórico de status (timeline de cada compra)
