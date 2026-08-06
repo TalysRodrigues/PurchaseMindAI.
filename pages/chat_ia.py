@@ -39,5 +39,7 @@ def render() -> None:
                     "Assim que a chave da IA for adicionada, respondo por aqui."
                 )
                 st.info(aviso)
+            except ia_service.IASemCreditosError as erro:
+                st.error(str(erro))
             except ia_service.IAErroExecucaoError as erro:
                 st.error(f"Não consegui responder agora: {erro}")
