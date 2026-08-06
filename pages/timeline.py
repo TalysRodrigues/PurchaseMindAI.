@@ -1,5 +1,5 @@
 """
-Página: Timeline de uma compra específica.
+Página: Timeline de uma ordem de compra específica.
 """
 
 import streamlit as st
@@ -16,22 +16,28 @@ def render() -> None:
     try:
         compras = compras_service.listar_compras()
     except Exception as erro:
-        st.error(f"Não foi possível carregar as compras: {erro}")
+        st.error(f"Não foi possível carregar as ordens de compra: {erro}")
         return
 
     if not compras:
-        st.caption("Nenhuma compra cadastrada ainda.")
+        st.caption("Nenhuma ordem de compra cadastrada ainda.")
         return
 
-    opcoes = {f"{c['descricao']} ({c['status']})": c["id"] for c in compras}
-    escolha = st.selectbox("Selecione a compra", options=list(opcoes.keys()))
+    opcoes = {f"{c['titulo']} ({c['status']})": c["id"] for c in compras}
+    escolha = st.selectbox("Selecione a ordem de compra", options=list(opcoes.keys()))
     compra_id = opcoes[escolha]
 
     compra = next(c for c in compras if c["id"] == compra_id)
     status_atual = StatusCompra(compra["status"])
+    itens = compra.get("compra_itens") or []
 
-    st.subheader(compra["descricao"])
+    st.subheader(compra["titulo"])
     render_status_badge(status_atual)
+
+    if itens:
+        st.caption("Itens desta ordem:")
+        for item in itens:
+            st.write(f"- {item['descricao']} — {item['quantidade']} unidade(s)")
 
     st.divider()
 
